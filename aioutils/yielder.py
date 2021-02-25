@@ -45,13 +45,12 @@ class Yielder(object):
 
     def _async_task(self, coro):
         if self.sem:
-            @asyncio.coroutine
-            def _limit_coro():
-                with (yield from self.sem):
-                    return (yield from coro)
-            task = asyncio.async(_limit_coro())
+            async def _limit_coro():
+                async with self.sem:
+                    return await coro
+            task = asyncio.ensure_future(_limit_coro())
         else:
-            task = asyncio.async(coro)
+            task = asyncio.ensure_future(coro)
         return task
 
     def _on_completion(self, f):

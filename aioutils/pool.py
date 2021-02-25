@@ -4,21 +4,20 @@
 
 Usage::
 
->>> @asyncio.coroutine
->>> def f(url):
-...     r = yield from aiohttp.request('get', url)
-...     content = yield from r.read()
+>>> async def f(url):
+...     r = await aiohttp.request('get', url)
+...     content = await r.read()
 ...     print('{}: {}'.format(url, content[:80]))
 
 >>> g = Group()
->>> g.async(f('http://www.baidu.com'))
->>> g.async(f('http://www.sina.com.cn'))
+>>> g.spawn(f('http://www.baidu.com'))
+>>> g.spawn(f('http://www.sina.com.cn'))
 >>> g.join()
 
 >>> # limit the concurrent coroutines to 3
 >>> p = Pool(3)
 >>> for _ in range(10):
-...     p.async(f('http://www.baidu.com'))
+...     p.spawn(f('http://www.baidu.com'))
 >>> p.join()
 """
 import asyncio
@@ -43,11 +42,11 @@ class Group(object):
 
     def spawn(self, coro_or_future):
         self.counter += 1
-        task = asyncio.async(coro_or_future)
+        task = asyncio.ensure_future(coro_or_future)
         task.add_done_callback(self._on_completion)
         return task
 
-    async = spawn
+    async_ = spawn
 
     def _on_completion(self, f):
         self.counter -= 1
@@ -78,14 +77,13 @@ class Pool(Group):
     def spawn(self, coro):
         assert asyncio.iscoroutine(coro), 'pool only accepts coroutine'
 
-        @asyncio.coroutine
-        def _limit_coro():
-            with (yield from self.sem):
-                return (yield from coro)
+        async def _limit_coro():
+            async with self.sem:
+                return await coro
 
         self.counter += 1
-        task = asyncio.async(_limit_coro())
+        task = asyncio.ensure_future(_limit_coro())
         task.add_done_callback(self._on_completion)
         return task
 
-    async = spawn
+    async_ = spawn
